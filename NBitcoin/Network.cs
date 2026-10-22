@@ -637,6 +637,23 @@ namespace NBitcoin
 				throw new InvalidOperationException("This instance can't be modified");
 		}
 
+		Script? _SignetChallenge;
+		/// <summary>
+		/// The script every block of a signet must satisfy (BIP 325), or null for a network that is not a signet.
+		/// </summary>
+		public Script? SignetChallenge
+		{
+			get
+			{
+				return _SignetChallenge;
+			}
+			set
+			{
+				EnsureNotFrozen();
+				_SignetChallenge = value;
+			}
+		}
+
 		bool _SupportTaproot = false;
 		public bool SupportTaproot
 		{
@@ -719,6 +736,7 @@ namespace NBitcoin
 			consensus._LitecoinWorkCalculation = _LitecoinWorkCalculation;
 			consensus._SupportSegwit = _SupportSegwit;
 			consensus._SupportTaproot = _SupportTaproot;
+			consensus._SignetChallenge = _SignetChallenge;
 			consensus._NeverNeedPreviousTxForSigning = _NeverNeedPreviousTxForSigning;
 		}
 	}
@@ -2071,6 +2089,15 @@ namespace NBitcoin
 			get
 			{
 				return _TestNet4;
+			}
+		}
+
+		/// <summary>The VerifiedX signet, the Bitcoin chain the VFX testnet follows (see <see cref="Bitcoin.VfxSignet"/>).</summary>
+		public static Network VfxSignet
+		{
+			get
+			{
+				return Bitcoin.Instance.VfxSignet;
 			}
 		}
 

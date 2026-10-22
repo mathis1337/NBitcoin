@@ -14,10 +14,19 @@ namespace NBitcoin
 		{
 		}
 
-		private Network CreateSignet()
+		/// <summary>The public signet's challenge (a 1-of-2 multisig).</summary>
+		public static readonly Script PublicSignetChallenge = new Script(DataEncoders.Encoders.Hex.DecodeData("512103ad5e0edad18cb1f0fc0d28a3d4f1f3e445640337489abb10404f2d1e086be430210359ef5021964fe22d6f8e05b2463c9540ce96883fe3b278760f048f5189f2e6c452ae"));
+
+		/// <summary>
+		/// The VerifiedX signet's challenge: a 1-of-1 multisig whose key the VerifiedX node farm holds, so only it can
+		/// produce blocks. The P2P message start follows from it (c69e715c).
+		/// </summary>
+		public static readonly Script VfxSignetChallenge = new Script(DataEncoders.Encoders.Hex.DecodeData("512102087972e937385ac079ad124a855112e94a5bdfdd2535a8bbe99fa6d57ced49b551ae"));
+
+		private Network CreateSignet(ChainName chainName, string name, Script challenge, string[] aliases, string[] seeds, bool registerCookie)
 		{
 			NetworkBuilder builder = new NetworkBuilder();
-			builder.SetChainName(SignetName);
+			builder.SetChainName(chainName);
 			builder.SetNetworkSet(this);
 			builder.SetConsensus(new Consensus()
 			{
@@ -35,7 +44,8 @@ namespace NBitcoin
 				MinerConfirmationWindow = 2016,
 				CoinbaseMaturity = 100,
 				SupportSegwit = true,
-				SupportTaproot = true
+				SupportTaproot = true,
+				SignetChallenge = challenge
 			})
 			.SetBase58Bytes(Base58Type.PUBKEY_ADDRESS, new byte[] { 111 })
 			.SetBase58Bytes(Base58Type.SCRIPT_ADDRESS, new byte[] { 196 })
@@ -45,36 +55,37 @@ namespace NBitcoin
 			.SetBech32(Bech32Type.WITNESS_PUBKEY_ADDRESS, "tb")
 			.SetBech32(Bech32Type.WITNESS_SCRIPT_ADDRESS, "tb")
 			.SetBech32(Bech32Type.TAPROOT_ADDRESS, "tb")
-			.SetMagic(GetSignetMagic())
+			.SetMagic(GetSignetMagic(challenge))
 			.SetPort(38333)
 			.SetRPCPort(38332)
-			.SetName("signet")
-			.AddAlias("bitcoin-signet")
-			.AddAlias("btc-signet")
+			.SetName(name)
 #if !NOSOCKET
-			.AddSeeds(new[]
-			{
-				"178.128.221.177",
-				"2a01:7c8:d005:390::5"
-			}.Select(o => new Protocol.NetworkAddress(System.Net.IPAddress.Parse(o))))
+			.AddSeeds(seeds.Select(o => new Protocol.NetworkAddress(System.Net.IPAddress.Parse(o))))
 #endif
+			// Every signet shares this genesis block; only the challenge (and so the message start) tells them apart.
 			.SetGenesis("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a008f4d5fae77031e8ad222030101000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4d04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73ffffffff0100f2052a01000000434104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac00000000");
+			foreach (var alias in aliases)
+				builder.AddAlias(alias);
 			var network = builder.BuildAndRegister();
 #if !NOFILEIO
-			var data = Network.GetDefaultDataFolder("bitcoin");
-			if (data != null)
+			if (registerCookie)
 			{
-				var signetCookie = Path.Combine(data, "signet", ".cookie");
-				RPC.RPCClient.RegisterDefaultCookiePath(network, signetCookie);
+				var data = Network.GetDefaultDataFolder("bitcoin");
+				if (data != null)
+				{
+					var signetCookie = Path.Combine(data, "signet", ".cookie");
+					RPC.RPCClient.RegisterDefaultCookiePath(network, signetCookie);
+				}
 			}
 #endif
 			return network;
 		}
 
-		private static uint GetSignetMagic()
+		/// <summary>A signet's P2P message start: the first four bytes of the double SHA-256 of its challenge, serialized with its length.</summary>
+		public static uint GetSignetMagic(Script challenge)
 		{
-			var challengeBytes = DataEncoders.Encoders.Hex.DecodeData("512103ad5e0edad18cb1f0fc0d28a3d4f1f3e445640337489abb10404f2d1e086be430210359ef5021964fe22d6f8e05b2463c9540ce96883fe3b278760f048f5189f2e6c452ae");
-			var challenge = new Script(challengeBytes);
+			if (challenge == null)
+				throw new ArgumentNullException(nameof(challenge));
 			MemoryStream ms = new MemoryStream();
 			BitcoinStream bitcoinStream = new BitcoinStream(ms, true);
 			bitcoinStream.ReadWrite(challenge);
@@ -95,6 +106,7 @@ namespace NBitcoin
 		public string CryptoCode => "BTC";
 
 		static readonly ChainName SignetName = new ChainName("Signet");
+		static readonly ChainName VfxSignetName = new ChainName("VfxSignet");
 
 		Network _Signet;
 		public Network Signet
@@ -104,6 +116,16 @@ namespace NBitcoin
 				return _Signet ??= Network.GetNetwork("signet");
 			}
 		}
+		Network _VfxSignet;
+		/// <summary>The VerifiedX signet: a signet whose blocks only the VerifiedX node farm can sign (<see cref="VfxSignetChallenge"/>).</summary>
+		public Network VfxSignet
+		{
+			get
+			{
+				return _VfxSignet ??= Network.GetNetwork("vfx-signet");
+			}
+		}
+
 		public Network GetNetwork(ChainName chainName)
 		{
 			if (chainName == null)
@@ -118,12 +140,22 @@ namespace NBitcoin
 				return Regtest;
 			if (chainName == SignetName)
 				return Signet;
+			if (chainName == VfxSignetName)
+				return VfxSignet;
 			return null;
 		}
 
 		internal Network InitSignet()
 		{
-			return _Signet = CreateSignet();
+			_Signet = CreateSignet(SignetName, "signet", PublicSignetChallenge,
+				new[] { "bitcoin-signet", "btc-signet" },
+				new[] { "178.128.221.177", "2a01:7c8:d005:390::5" },
+				registerCookie: true);
+			_VfxSignet = CreateSignet(VfxSignetName, "vfx-signet", VfxSignetChallenge,
+				new[] { "btc-vfx-signet" },
+				new string[0],
+				registerCookie: false);
+			return _Signet;
 		}
 	}
 }
