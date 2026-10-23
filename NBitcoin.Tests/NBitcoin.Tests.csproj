@@ -153,6 +153,18 @@
     <Content Include="data\block-testnet-828575.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="data\block-testnet4-29550.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\vfx-signet-block-2016.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\vfx-signet-block-2046.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\signet-block-327500.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="data\bip158_vectors.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
