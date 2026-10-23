@@ -99,7 +99,7 @@ namespace NBitcoin
 			var prev = block.Header.HashPrevBlock;
 			stream.ReadWrite(ref prev);
 			stream.ReadWrite(ref signetMerkle);
-			var time = (uint)block.Header.BlockTime.ToUnixTimeSeconds();
+			var time = Utils.DateTimeToUnixTime(block.Header.BlockTime);
 			stream.ReadWrite(ref time);
 
 			var toSpend = new Transaction { Version = 0, LockTime = LockTime.Zero };
@@ -175,9 +175,10 @@ namespace NBitcoin
 						pc += 4;
 					}
 					if (size > script.Length - pc) break;
-					push = new byte[size];
-					Array.Copy(script, pc, push, 0, size);
-					pc += (int)size;
+					var length = (int)size;
+					push = new byte[length];
+					Array.Copy(script, pc, push, 0, length);
+					pc += length;
 				}
 
 				if (push != null && push.Length > 0)
